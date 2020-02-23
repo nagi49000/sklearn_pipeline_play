@@ -1,0 +1,8 @@
+- pipeline:
+    data:
+        tests/data/simple_numbers.csv
+    dim_reduce:
+        random_state: 0
+    cluster:
+        n_clusters: 3
+        random_state: 0

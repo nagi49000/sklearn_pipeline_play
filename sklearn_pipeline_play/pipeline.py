@@ -13,6 +13,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 class NoiseAdder(BaseEstimator, TransformerMixin):
     """ Adds Gaussian Noise """
+
     def __init__(self, random_state=None, loc=0.0, scale=0.0):
         """ random_state - int - seed for making noise. None inhibits.
             loc - float - Mean (“centre”) of the distribution.
@@ -35,6 +36,7 @@ class NoiseAdder(BaseEstimator, TransformerMixin):
 
 class PipelineWrapper:
     """ Wraps a scikit learn Pipeline. Uses a nested dictionary of parameters to configure the pipeline """
+
     def __init__(self, yaml_dict):
         """ yaml_dict - dict - nested dictionary of (1st level) the steps in the pipeline, and (2nd level) step params """
         self._params = self._get_params_from_yaml_dict(yaml_dict)
@@ -44,8 +46,8 @@ class PipelineWrapper:
             returns a dictionary of params of the pipeline in scikit learn Pipeline lingo
         """
         params = {}
-        for step in {'normalise', 'dim_reduce', 'cluster'} & set(yd.keys()):
-            params.update({step+'__'+k:v for k,v in yd[step].items()})
+        for step in yd.keys():
+            params.update({step+'__'+k: v for k, v in yd[step].items()})
         return params
 
     def _get_pipeline(self, params_dict):
@@ -69,6 +71,7 @@ class PipelineWrapper:
 
 class DataIngest:
     """ Wrapper for ingesting a table of data """
+
     def __init__(self, source):
         """ source - str - specifies some kind of source. Currently, only csv supported """
         self._source = source
@@ -80,6 +83,7 @@ class DataIngest:
 
 class MainWrapper:
     """ wrapper for calling Pipeline from the command line """
+
     def __init__(self, argv):
         """ argv - list<str> - as hoovered up from sys.argv """
         self._argv = argv
@@ -97,10 +101,10 @@ class MainWrapper:
         """ runs from command line args through to pipeline. Returns pipeline results """
         args = self._parse_args(self._argv)
         with open(args['yaml']) as yaml_file:
-            yaml_dict = yaml.safe_load(yaml_file) # returns list<dict>
-        yaml_dict = yaml_dict[0]['pipeline']
+            yaml_dict = yaml.safe_load(yaml_file)  # returns list<dict>
+        yaml_dict = yaml_dict[0]['machine_learning_setup']
         data = DataIngest(yaml_dict['data']).get()
-        return PipelineWrapper(yaml_dict).fit_transform(data)
+        return PipelineWrapper(yaml_dict['pipeline']).fit_transform(data)
 
 
 if __name__ == '__main__':

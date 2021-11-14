@@ -1,0 +1,9 @@
+- machine_learning_setup:
+    data:
+        tests/data/simple_numbers.csv
+    pipeline:
+        dim_reduce:
+            random_state: 0
+        cluster:
+            n_clusters: 3
+            random_state: 0

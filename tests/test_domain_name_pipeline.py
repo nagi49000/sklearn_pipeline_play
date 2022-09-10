@@ -7,7 +7,8 @@ from sklearn_pipeline_play.domain_name_pipeline import(
     get_references,
     ReferenceAdder,
     TokensWithReferences,
-    ReferenceResolver
+    ReferenceResolver,
+    pipeline
 )
 
 def test_fake_data_generator():
@@ -54,13 +55,15 @@ def test_stop_word_remover():
     ]
 
 
-def test_reference_identifier():
+def test_get_references():
     assert get_references([]) == []
     assert get_references(["bob", "com"]) == ["country"]
     assert get_references(["bob", "edu"]) == ["country", "uni"]
+    assert get_references(["bob", "ac"]) == ["country", "uni"]
 
 
 def test_reference_adder():
+    # specify how to get refs
     r = ReferenceAdder(get_references)
     tokens = [
         [],
@@ -74,6 +77,14 @@ def test_reference_adder():
         {"tokens": ["bob", "edu"], "references": ["country", "uni"]}
     ]
 
+    # don't specify how to get refs
+    r = ReferenceAdder()
+    with_refs = r.fit(tokens).transform(tokens)
+    assert [dataclasses.asdict(x) for x in with_refs] == [
+        {"tokens": [], "references": []},
+        {"tokens": ["bob", "com"], "references": []},
+        {"tokens": ["bob", "edu"], "references": []}
+    ]
 
 def test_reference_resolver():
     reference_datasets = {
@@ -113,4 +124,41 @@ def test_reference_resolver():
         [],
         [],
         []
+    ]
+
+
+def test_pipeline():
+    p = pipeline
+    reference_datasets = {
+        "country" : {
+            "us": "United States",
+            "uk": "United Kingdom"
+        },
+        "uni" : {
+            "ed": "edinburgh",
+            "soton": "southampton",
+            "stan": "stanford",
+            "prince": "princeton"
+        }
+    }
+    params = {
+        "stopwords__stop_words": {"www", "com", "net"},
+        "reference_enrichment__get_references_function": get_references,
+        "reference_resolve__reference_datasets": reference_datasets
+    }
+    p.set_params(**params)
+
+    data = [
+        "www.ed.ac.uk",
+        "www.soton.ac.uk",
+        "www.google.com",
+        "www.bob.us"
+    ]
+
+    results = p.fit_transform(data)
+    assert list(results) == [
+        ['United Kingdom', 'edinburgh'],
+        ['United Kingdom', 'southampton'],
+        [],
+        ['United States']
     ]

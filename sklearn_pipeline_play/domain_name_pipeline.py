@@ -77,18 +77,20 @@ def get_references(tokens: List[str]) -> List[str]:
     references = []
     if tokens:
         references.append("country")
-        if tokens[-1] == "edu":
+        if tokens[-1] == "edu" or "ac" in tokens:
             references.append("uni")
     return references
 
 
 class ReferenceAdder(BaseEstimator, TransformerMixin):
-    def __init__(self, get_references_function: Callable):
+    def __init__(self, get_references_function: Callable=None):
         """
             get_references_function - function that takes a list of tokens, and
                                       returns a list of reference datasets
         """
-        self.get_references = get_references_function
+        def empty_fn(_):
+            return []
+        self.get_references_function = empty_fn if get_references_function is None else get_references_function
 
     def fit(self, X, y=None):
         """ trivial method; returns self """
@@ -96,7 +98,7 @@ class ReferenceAdder(BaseEstimator, TransformerMixin):
 
     def transform(self, X: Iterable[List[str]], y: None=None) -> Iterable[TokensWithReferences]:
         for s in X:
-            yield TokensWithReferences(s, get_references(s))
+            yield TokensWithReferences(s, self.get_references_function(s))
 
 
 class ReferenceResolver(BaseEstimator, TransformerMixin):
@@ -116,8 +118,16 @@ class ReferenceResolver(BaseEstimator, TransformerMixin):
         for s in X:
             resolved = []
             for ref in s.references:
-                this_ref = self.reference_datasets.get(ref, {})
-                this_resolved = [this_ref.get(x, None) for x in s.tokens]
+                this_ref_ds = self.reference_datasets.get(ref, {})
+                this_resolved = [this_ref_ds.get(x, None) for x in s.tokens]
                 this_resolved = [x for x in this_resolved if x is not None]
                 resolved += this_resolved
             yield resolved
+
+
+pipeline = Pipeline(steps=[
+    ("tokenize", Tokenizer()),
+    ("stopwords", StopWordRemover()),
+    ("reference_enrichment", ReferenceAdder(get_references)),
+    ("reference_resolve", ReferenceResolver({}))
+])

@@ -1,12 +1,28 @@
 import random
 from faker import Faker
+from typing import (
+    Set,
+    Iterable,
+    List,
+    Dict,
+    Callable
+)
 from faker.providers import internet
 from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
 class FakeDataGenerator():
-    def get_domain_names(self, number_of_records, levels=[2], seed=None):
+    def get_hostnames(
+            self,
+            number_of_records: int,
+            levels: List[int]=[2],
+            seed: int=None
+    ) -> Iterable[str]:
+        """ number_of_records - number of domain names to create
+            levels - list of depths that hostnames can have
+            seed - optional seed for repeatable results
+        """
         if seed is not None:
             random.seed(seed)
             Faker.seed(seed)
@@ -14,3 +30,60 @@ class FakeDataGenerator():
         fake.add_provider(internet)
         for _ in range(number_of_records):
             yield fake.hostname(levels=random.choice(levels))
+
+
+class Tokenizer(BaseEstimator, TransformerMixin):
+    def __init__(self, split_char: str="."):
+        """ split_char - character over which to split strings """
+        self.split_char = split_char
+
+    def fit(self, X, y=None):
+        """ trivial method; returns self """
+        return self
+
+    def transform(self, X: Iterable[str], y: None=None) -> Iterable[List[str]]:
+        """ convert str to list<str> split over split_char """
+        for s in X:
+            # split the string, dropping zero length strings
+            split_str = [x for x in s.split(self.split_char) if x]
+            yield split_str
+
+
+class StopWordRemover(BaseEstimator, TransformerMixin):
+    def __init__(self, stop_words: Set[str]=None):
+        """ stop_words - tokens to drop from supplied tokens """
+        self.stop_words = set() if stop_words is None else stop_words
+
+    def fit(self, X, y=None):
+        """ trivial method; returns self """
+        return self
+
+    def transform(self, X: Iterable[List[str]], y: None=None) -> Iterable[List[str]]:
+        """ filter a list<str> for stop words """
+        for s in X:
+            filtered_str = [x for x in s if x not in self.stop_words]
+            yield filtered_str
+
+
+def get_references(tokens: List[str]) -> List[str]:
+    """ based on the supplied tokens, return a list of relevant reference datasets """
+    references = []
+    if tokens:
+        references.append("country")
+        if tokens[-1] == "edu":
+            references.append("uni")
+    return references
+
+
+class ReferenceAdder(BaseEstimator, TransformerMixin):
+    def __init__(self, get_references_function: Callable):
+        """ split_char - character over which to split strings """
+        self.get_references = get_references
+
+    def fit(self, X, y=None):
+        """ trivial method; returns self """
+        return self
+
+    def transform(self, X: Iterable[List[str]], y: None=None) -> Dict:
+        for s in X:
+            yield {"tokens": s, "references": self.get_references(s)}

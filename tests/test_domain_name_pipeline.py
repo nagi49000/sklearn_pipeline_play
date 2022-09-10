@@ -1,10 +1,13 @@
 import types
+import dataclasses
 from sklearn_pipeline_play.domain_name_pipeline import(
     FakeDataGenerator,
     Tokenizer,
     StopWordRemover,
     get_references,
-    ReferenceAdder
+    ReferenceAdder,
+    TokensWithReferences,
+    ReferenceResolver
 )
 
 def test_fake_data_generator():
@@ -65,8 +68,49 @@ def test_reference_adder():
         ["bob", "edu"]
     ]
     with_refs = r.fit(tokens).transform(tokens)
-    assert list(with_refs) == [
-        {'tokens': [], 'references': []},
-        {'tokens': ['bob', 'com'], 'references': ['country']},
-        {'tokens': ['bob', 'edu'], 'references': ['country', 'uni']}
+    assert [dataclasses.asdict(x) for x in with_refs] == [
+        {"tokens": [], "references": []},
+        {"tokens": ["bob", "com"], "references": ["country"]},
+        {"tokens": ["bob", "edu"], "references": ["country", "uni"]}
+    ]
+
+
+def test_reference_resolver():
+    reference_datasets = {
+        "country" : {
+            "us": "United States",
+            "uk": "United Kingdom"
+        },
+        "uni" : {
+            "ed": "edinburgh",
+            "soton": "southampton",
+            "stan": "stanford",
+            "prince": "princeton"
+        }
+    }
+    r = ReferenceResolver(reference_datasets)
+    tokens_with_refs = [
+        TokensWithReferences(["ed", "ac", "uk"], ["country", "uni"]),
+        TokensWithReferences(["ed", "ac", "uk"], ["country"]),
+        TokensWithReferences(["ed", "ac", "uk"], ["uni"]),
+        TokensWithReferences(["ed", "ac", "uk"], []),
+        TokensWithReferences(["ed", "ac", "uk"], ["country", "uni", "not-a-reference"]),
+        TokensWithReferences(["ed", "ac", "uk"], ["not-a-reference"]),
+        TokensWithReferences(["stan", "us"], ["country", "uni"]),
+        TokensWithReferences(["foo", "bar"], ["country", "uni"]),
+        TokensWithReferences(["google"], ["country", "uni"]),
+        TokensWithReferences([], []),
+    ]
+    resolved = r.fit(tokens_with_refs).transform(tokens_with_refs)
+    assert list(resolved) == [
+        ['United Kingdom', 'edinburgh'],
+        ['United Kingdom'],
+        ['edinburgh'],
+        [],
+        ['United Kingdom', 'edinburgh'],
+        [],
+        ['United States', 'stanford'],
+        [],
+        [],
+        []
     ]

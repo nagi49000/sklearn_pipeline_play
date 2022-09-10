@@ -10,6 +10,7 @@ from typing import (
 from faker.providers import internet
 from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
+from dataclasses import dataclass
 
 
 class FakeDataGenerator():
@@ -65,6 +66,12 @@ class StopWordRemover(BaseEstimator, TransformerMixin):
             yield filtered_str
 
 
+@dataclass
+class TokensWithReferences:
+    tokens: List[str]
+    references: List[str]
+
+
 def get_references(tokens: List[str]) -> List[str]:
     """ based on the supplied tokens, return a list of relevant reference datasets """
     references = []
@@ -77,13 +84,40 @@ def get_references(tokens: List[str]) -> List[str]:
 
 class ReferenceAdder(BaseEstimator, TransformerMixin):
     def __init__(self, get_references_function: Callable):
-        """ split_char - character over which to split strings """
-        self.get_references = get_references
+        """
+            get_references_function - function that takes a list of tokens, and
+                                      returns a list of reference datasets
+        """
+        self.get_references = get_references_function
 
     def fit(self, X, y=None):
         """ trivial method; returns self """
         return self
 
-    def transform(self, X: Iterable[List[str]], y: None=None) -> Dict:
+    def transform(self, X: Iterable[List[str]], y: None=None) -> Iterable[TokensWithReferences]:
         for s in X:
-            yield {"tokens": s, "references": self.get_references(s)}
+            yield TokensWithReferences(s, get_references(s))
+
+
+class ReferenceResolver(BaseEstimator, TransformerMixin):
+    def __init__(self, reference_datasets: Dict[str, Dict[str, str]]):
+        """
+            reference_datasets - key is a str, and value is a reference dataset.
+                                 A reference dataset is a dictionary acting as a lookup
+                                 of words to lemmatized words
+        """
+        self.reference_datasets = reference_datasets
+
+    def fit(self, X, y=None):
+        """ trivial method; returns self """
+        return self
+
+    def transform(self, X: Iterable[TokensWithReferences], y: None=None) -> Iterable[List[str]]:
+        for s in X:
+            resolved = []
+            for ref in s.references:
+                this_ref = self.reference_datasets.get(ref, {})
+                this_resolved = [this_ref.get(x, None) for x in s.tokens]
+                this_resolved = [x for x in this_resolved if x is not None]
+                resolved += this_resolved
+            yield resolved
